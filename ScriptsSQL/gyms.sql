@@ -7,5 +7,8 @@ CREATE TABLE gyms(
     description TEXT,
     image_url TEXT,
     price DECIMAL(10,2),
+    phone VARCHAR(20),
+    email VARCHAR(255),
+    max_capacity INT DEFAULT 100,
     is_open BOOLEAN DEFAULT false
 );
