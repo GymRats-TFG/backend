@@ -6,7 +6,7 @@ Este directorio contiene el núcleo lógico de la aplicación **GymRats**, desar
 
 * **Lenguaje:** Python 3.10+
 * **Framework:** FastAPI - Framework moderno y asíncrono para Python.
-* **Servidor ASGI:** Uvicorn - Servidor de alto rendimiento (para pruebas en local).
+* **Servidor ASGI:** Uvicorn - Servidor de alto rendimiento.
 * **Validación de Datos:** Pydantic - Basado en Python Type Hints.
 * **BBDD / Auth:** Supabase - Backend as a Service (PostgreSQL).
 
@@ -37,7 +37,7 @@ source venv/bin/activate
 ### 2. Instalar Dependencias
 
 ```bash
-pip install fastapi uvicorn supabase pydantic python-dotenv
+pip install -r requirements.txt
 ```
 
 ### 3. Variables de Entorno
