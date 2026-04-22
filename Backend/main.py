@@ -15,6 +15,7 @@ def health_check():
 @app.post("/signup")
 async def signup(user: UserSignup):
     try:
+        # Registramos un nuevo usuario en supabase
         response = supabase.auth.sign_up({
             "email": user.email,
             "password": user.password,
@@ -25,6 +26,27 @@ async def signup(user: UserSignup):
                 }
             }
         })
+
+        # Devolvemos mensaje de registro exitoso y el usuario
         return {"message": "User created successfully", "user": response.user}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/login")
+async def login(user: UserLogin):
+    try:
+        # Intentamos iniciar sesión en supabase con correo y contraseña
+        response = supabase.auth.sign_in_with_password({
+            "email": user.email,
+            "password": user.password
+        })
+        
+        # Devolvemos el token del usuario
+        return {
+            "access_token": response.session.access_token,
+            "token_type": "bearer",
+            "user": response.user
+        }
+    except Exception as e:
+        # Si las credenciales son incorrectas o el usuario no existe.
+        raise HTTPException(status_code=401, detail="Invalid email or password")
