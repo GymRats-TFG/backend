@@ -26,3 +26,13 @@ class UserSignup(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+class GymCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    address: str
+    latitude: float
+    longitude: float
+    phone: str
+    price: float
+    max_capacity: int
