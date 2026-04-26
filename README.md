@@ -6,6 +6,7 @@
 
 El backend se encuentra desplegado y puede ser testeado de forma interactiva en:
 👉 **[GymRats API Dashboard (Swagger UI)](https://gymrats-api-jrrw.onrender.com/docs)**
+*Nota: debido al uso del plan gratuito de [render.com](https://render.com/) es posible que se deba esperar un poco antes de poder hacer uso de la API.*
 
 ## 📁 Estructura del Repositorio
 
