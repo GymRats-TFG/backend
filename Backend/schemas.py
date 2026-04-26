@@ -31,9 +31,10 @@ class UserSignup(BaseModel):
 class GymCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    address: str
     latitude: float
     longitude: float
     phone: str
+    email: EmailStr
     price: float
     max_capacity: int
+    image_url: Optional[str] = None

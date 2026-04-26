@@ -17,8 +17,8 @@ def health_check():
 @app.post("/signup")
 async def signup(user: UserSignup):
     try:
-        # Registramos un nuevo usuario en supabase
-        response = supabase.auth.sign_up({
+        # Registramos un nuevo usuario en supabase Auth
+        auth_response = supabase.auth.sign_up({
             "email": user.email,
             "password": user.password,
             "options": {
@@ -29,8 +29,31 @@ async def signup(user: UserSignup):
             }
         })
 
+        # Verificamos que se haya creado correctamente
+        if not auth_response.user:
+            raise Exception("Error al crear el usuario en la autenticación.")
+        
+        user_id = auth_response.user.id
+
+        # Insertamos el perfil en la tabla profiles
+        profile_data = {
+            "id": user_id,
+            "username": user.username,
+            "name": user.username,  # Por defecto usamos el username como nombre
+            "role": "enterprise" if user.is_enterprise else "user"
+        }
+
+        profile_response = supabase.table("profiles").insert(profile_data).execute()
+
+        # Si algo falla en la tabla profiles
+        if not profile_response.data:
+            raise Exception("Usuario autenticado, pero falló la creación del perfil.")
+
         # Devolvemos mensaje de registro exitoso y el usuario
-        return {"message": "Usuario creado correctamente", "user": response.user}
+        return {
+            "message": "Usuario y perfil creados correctamente", 
+            "user": auth_response.user
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -72,28 +95,29 @@ async def create_gym(gym: GymCreate, current_user = Depends(get_current_user)):
             detail="Solo las empresas pueden registrar gimnasios."
         )
     try:
-        # Preparamos los datos para la tabla gyms
-        # Extraemos max_capacity porque va a la tabla gym_stats, no a gyms
+        # Convertimos el esquema a diccionario
         gym_dict = gym.model_dump()
-        max_cap = gym_dict.pop("max_capacity")
         
         # Vinculamos el gym a la cuenta empresa
-        gym_dict["owner_id"] = current_user.id
+        gym_dict["enterprise_id"] = current_user.id
+        # Forzamos que el gym nazca cerrado por defecto
+        gym_dict["is_open"] = False
 
         # Insertamos en Supabase
         response = supabase.table("gyms").insert(gym_dict).execute()
+
+        if not response.data:
+            raise Exception("No se pudieron insertar los datos en la tabla gyms.")
         
-        if response.data:
-            new_gym_id = response.data[0]["id"]
-            
-            # Inicializamos las estadísticas de aforo (tabla gym_stats)
-            supabase.table("gym_stats").insert({
-                "gym_id": new_gym_id,
-                "max_capacity": max_cap,
-                "current_capacity": 0
-            }).execute()
+        # Obtener el ID del gimnasio
+        new_gym_id = response.data[0]["id"]
+
+        # Inicializamos las estadísticas del aforo
+        supabase.table("gym_stats").insert({
+            "gym_id": new_gym_id,
+            "current_capacity": 0
+        }).execute()
 
         return {"message": "Gimnasio registrado", "gym": response.data}
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
