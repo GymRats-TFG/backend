@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import OAuth2PasswordRequestForm
 from database import supabase
-from schemas import UserSignup, UserLogin, GymCreate
+from schemas import UserSignup, GymCreate
 from auth import get_current_user
 
 app = FastAPI(title="GymRats API")
@@ -29,17 +30,17 @@ async def signup(user: UserSignup):
         })
 
         # Devolvemos mensaje de registro exitoso y el usuario
-        return {"message": "User created successfully", "user": response.user}
+        return {"message": "Usuario creado correctamente", "user": response.user}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/login")
-async def login(user: UserLogin):
+async def login(form_data: OAuth2PasswordRequestForm = Depends()): # Usamos el estándar de formulario para que funcione en SwaggerUI
     try:
         # Intentamos iniciar sesión en supabase con correo y contraseña
         response = supabase.auth.sign_in_with_password({
-            "email": user.email,
-            "password": user.password
+            "email": form_data.username,
+            "password": form_data.password
         })
         
         # Devolvemos el token del usuario
@@ -50,7 +51,7 @@ async def login(user: UserLogin):
         }
     except Exception as e:
         # Si las credenciales son incorrectas o el usuario no existe.
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Correo o contraseña inválida")
     
 @app.get("/users/me")
 async def get_my_profile(current_user = Depends(get_current_user)):

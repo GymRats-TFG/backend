@@ -23,9 +23,10 @@ class UserSignup(BaseModel):
             
         return v
 
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
+# Ya no se usa al cambiar el /login de main.py de user: UserLogin a form_data: OAuth2PasswordRequestForm = Depends()
+# class UserLogin(BaseModel):
+#     email: EmailStr
+#     password: str
 
 class GymCreate(BaseModel):
     name: str
