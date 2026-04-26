@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from database import supabase
 from schemas import UserSignup, UserLogin
+from auth import get_current_user
 
 app = FastAPI(title="GymRats API")
 
@@ -50,3 +51,12 @@ async def login(user: UserLogin):
     except Exception as e:
         # Si las credenciales son incorrectas o el usuario no existe.
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+@app.get("/users/me")
+async def get_my_profile(current_user = Depends(get_current_user)):
+    # Aquí current_user ya tiene toda la info de la DB
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "metadata": current_user.user_metadata # el resto de datos del usuario, como el username, is_enterprise, etc.
+    }
