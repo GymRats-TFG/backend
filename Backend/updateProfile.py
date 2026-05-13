@@ -25,23 +25,33 @@ async def update_user_profile(
     if name is not None:
         update_payload["name"] = name
 
-    # 3️Procesar y subir imagen
+    # Procesar y subir imagen
     if avatar_file:
         if not avatar_file.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="El archivo debe ser una imagen válida (PNG, JPG, etc).")
+            raise HTTPException(status_code=400, detail="El archivo debe ser una imagen válida.")
 
         file_content = await avatar_file.read()
         file_name = f"{user_id}.png"
         bucket_name = "profile photos"
+        
+        file_options = {"content-type": avatar_file.content_type}
 
-        # Subir al bucket (upsert=True sobrescribe la imagen si ya existía)
-        upload_res = supabase.storage.from_(bucket_name).upload(
-            path=file_name,
-            file=file_content,
-            file_options={"content-type": avatar_file.content_type, "upsert": True}
-        )
+        try:
+            # Intentamos subir la imagen como si fuera nueva
+            supabase.storage.from_(bucket_name).upload(
+                path=file_name,
+                file=file_content,
+                file_options=file_options
+            )
+        except Exception:
+            # Si falla, asumimos que ya existe y la sobrescribimos (update)
+            supabase.storage.from_(bucket_name).update(
+                path=file_name,
+                file=file_content,
+                file_options=file_options
+            )
 
-        # Obtener URL pública
+        # Obtener la URL pública tras asegurar que la imagen está en el bucket
         avatar_url = supabase.storage.from_(bucket_name).get_public_url(file_name)
         update_payload["avatar_url"] = avatar_url
 
