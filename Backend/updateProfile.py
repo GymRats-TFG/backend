@@ -1,0 +1,57 @@
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from typing import Optional
+from database import supabase
+from auth import get_current_user
+
+router = APIRouter()
+
+@router.patch("/users/profile")
+async def update_user_profile(
+    name: Optional[str] = Form(None),
+    username: Optional[str] = Form(None),
+    avatar_file: Optional[UploadFile] = File(None),
+    current_user = Depends(get_current_user)
+):
+    user_id = current_user.id
+    update_payload = {}
+
+    if username is not None:
+        check = supabase.table("profiles").select("id").eq("username", username).execute()
+        # Si existe en BD y NO pertenece al usuario actual
+        if check.data and check.data[0]["id"] != user_id:
+            raise HTTPException(status_code=409, detail="El nombre de usuario ya está en uso por otro usuario.")
+        update_payload["username"] = username
+
+    if name is not None:
+        update_payload["name"] = name
+
+    # 3️Procesar y subir imagen
+    if avatar_file:
+        if not avatar_file.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="El archivo debe ser una imagen válida (PNG, JPG, etc).")
+
+        file_content = await avatar_file.read()
+        file_name = f"{user_id}.png"
+        bucket_name = "profile photos"
+
+        # Subir al bucket (upsert=True sobrescribe la imagen si ya existía)
+        upload_res = supabase.storage.from_(bucket_name).upload(
+            path=file_name,
+            file=file_content,
+            file_options={"content-type": avatar_file.content_type, "upsert": True}
+        )
+
+        # Obtener URL pública
+        avatar_url = supabase.storage.from_(bucket_name).get_public_url(file_name)
+        update_payload["avatar_url"] = avatar_url
+
+    # Validamos que hay algo para actualizar
+    if not update_payload:
+        raise HTTPException(status_code=400, detail="No se enviaron datos para actualizar.")
+
+    # Actualizamos el usuario
+    supabase.table("profiles").update(update_payload).eq("id", user_id).execute()
+
+    # Devolvemos el perfil actualizado
+    updated_profile = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
+    return updated_profile.data

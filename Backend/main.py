@@ -3,8 +3,11 @@ from fastapi.security import OAuth2PasswordRequestForm
 from database import supabase
 from schemas import UserSignup, GymCreate
 from auth import get_current_user
+from updateProfile import router
 
 app = FastAPI(title="GymRats API")
+
+app.include_router(router)
 
 @app.get("/")
 def read_root():
@@ -17,6 +20,11 @@ def health_check():
 @app.post("/signup")
 async def signup(user: UserSignup):
     try:
+        # Comprobamos que no exista ya un usuario con ese mismo username
+        existing_user = supabase.table("profiles").select("id").eq("username", user.username).execute()
+        if existing_user.data:
+            raise HTTPException(status_code=409, detail="El nombre de usuario ya está en uso.")
+
         # Registramos un nuevo usuario en supabase Auth
         auth_response = supabase.auth.sign_up({
             "email": user.email,
@@ -95,6 +103,8 @@ async def get_my_profile(current_user = Depends(get_current_user)):
         "description": profile_data.get("description"),
         "is_enterprise": current_user.user_metadata.get("is_enterprise", False)
     }
+
+
 
 @app.post("/gyms")
 async def create_gym(gym: GymCreate, current_user = Depends(get_current_user)):
