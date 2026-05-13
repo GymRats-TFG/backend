@@ -40,7 +40,8 @@ async def signup(user: UserSignup):
             "id": user_id,
             "username": user.username,
             "name": user.username,  # Por defecto usamos el username como nombre
-            "role": "enterprise" if user.is_enterprise else "user"
+            "role": "enterprise" if user.is_enterprise else "user",
+            "avatar_url": "https://tqovlbwynuyysiopimiv.supabase.co/storage/v1/object/public/profile%20photos/default_profile_photo.png"
         }
 
         profile_response = supabase.table("profiles").insert(profile_data).execute()
@@ -78,11 +79,21 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()): # Usamos el e
     
 @app.get("/users/me")
 async def get_my_profile(current_user = Depends(get_current_user)):
-    # Aquí current_user ya tiene toda la info de la DB
+    user_id = current_user.id
+
+    # Recopilamos toda la información del usuario, como foto de perfil, etc.
+    response = supabase.table("profiles").select("*").eq("id",user_id).execute()
+    profile_data = response.data[0] if response.data else {}
+
+    # Devolvemos toda la información
     return {
         "id": current_user.id,
         "email": current_user.email,
-        "metadata": current_user.user_metadata # el resto de datos del usuario, como el username, is_enterprise, etc.
+        "username": current_user.user_metadata.get("username", ""),
+        "name": profile_data.get("name"),
+        "avatar_url": profile_data.get("avatar_url"),
+        "description": profile_data.get("description"),
+        "is_enterprise": current_user.user_metadata.get("is_enterprise", False)
     }
 
 @app.post("/gyms")
