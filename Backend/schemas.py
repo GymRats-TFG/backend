@@ -23,11 +23,6 @@ class UserSignup(BaseModel):
             
         return v
 
-# Ya no se usa al cambiar el /login de main.py de user: UserLogin a form_data: OAuth2PasswordRequestForm = Depends()
-# class UserLogin(BaseModel):
-#     email: EmailStr
-#     password: str
-
 class GymCreate(BaseModel):
     name: str
     description: Optional[str] = None
@@ -38,3 +33,17 @@ class GymCreate(BaseModel):
     price: float
     max_capacity: int
     image_url: Optional[str] = None
+
+class GymResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    latitude: float
+    longitude: float
+    phone: str
+    email: EmailStr
+    price: float
+    max_capacity: int
+    current_capacity: int
+    image_url: Optional[str] = None
+    is_open: bool

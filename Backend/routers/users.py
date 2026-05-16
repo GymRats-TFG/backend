@@ -1,11 +1,30 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from typing import Optional
 from database import supabase
-from auth import get_current_user
+from routers.auth import get_current_user
 
-router = APIRouter()
+router = APIRouter(prefix="/users", tags=["Users"])
 
-@router.patch("/users/profile")
+@router.get("/me")
+async def get_my_profile(current_user = Depends(get_current_user)):
+    user_id = current_user.id
+
+    # Recopilamos toda la información del usuario, como foto de perfil, etc.
+    response = supabase.table("profiles").select("*").eq("id",user_id).execute()
+    profile_data = response.data[0] if response.data else {}
+
+    # Devolvemos toda la información
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "username": current_user.user_metadata.get("username", ""),
+        "name": profile_data.get("name"),
+        "avatar_url": profile_data.get("avatar_url"),
+        "description": profile_data.get("description"),
+        "is_enterprise": current_user.user_metadata.get("is_enterprise", False)
+    }
+
+@router.patch("/profile")
 async def update_user_profile(
     name: Optional[str] = Form(None),
     username: Optional[str] = Form(None),
