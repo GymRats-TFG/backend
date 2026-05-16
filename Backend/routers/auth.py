@@ -79,19 +79,26 @@ async def signup(user: UserSignup):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()): # Usamos el estándar de formulario para que funcione en SwaggerUI
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     try:
         # Intentamos iniciar sesión en supabase con correo y contraseña
         response = supabase.auth.sign_in_with_password({
             "email": form_data.username,
             "password": form_data.password
         })
+
+        user = response.user
         
         # Devolvemos el token del usuario
         return {
             "access_token": response.session.access_token,
             "token_type": "bearer",
-            "user": response.user
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.user_metadata.get("username", ""),
+                "is_enterprise": user.user_metadata.get("is_enterprise", False)
+            }
         }
     except Exception as e:
         # Si las credenciales son incorrectas o el usuario no existe.
