@@ -67,21 +67,25 @@ async def get_my_gyms(current_user = Depends(get_current_user)):
 
 @router.get("/{gym_id}", response_model=GymResponse)
 async def get_gym(gym_id: str, current_user = Depends(get_current_user)):
-    # Obtenemos ñps datos del gimnasio
     gym_res = supabase.table("gyms").select("*").eq("id", gym_id).single().execute()
     if not gym_res.data:
         raise HTTPException(status_code=404, detail="Sede no encontrada.")
 
-    # Obtenemos las estadísticas de aforo
     stats_res = supabase.table("gym_stats").select("current_capacity").eq("gym_id", gym_id).single().execute()
     current_cap = stats_res.data.get("current_capacity", 0) if stats_res.data else 0
 
     gym_data = gym_res.data
     
+    try:
+        geoaddress = await reverse_geocode(gym_data["latitude"], gym_data["longitude"])
+    except Exception:
+        geoaddress = "Dirección no disponible"
+
     return GymResponse(
         id=gym_data["id"],
         name=gym_data["name"],
         description=gym_data.get("description"),
+        address=geoaddress,  # ✅ Ahora sí está definido
         latitude=gym_data["latitude"],
         longitude=gym_data["longitude"],
         phone=gym_data["phone"],
