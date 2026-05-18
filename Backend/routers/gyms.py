@@ -3,7 +3,7 @@ from pydantic import EmailStr
 from typing import Optional
 from database import supabase
 from routers.auth import get_current_user
-from schemas import GymCreate, GymResponse, MemberLinkRequest, MemberInfoResponse
+from schemas import GymResponse, MemberLinkRequest, MemberInfoResponse
 
 router = APIRouter(prefix="/gyms", tags=["Gyms"])
 
@@ -19,28 +19,37 @@ async def create_gym(
     image_file: UploadFile = File(...),
     current_user = Depends(get_current_user)
 ):
-    # 1️⃣ Verificar que el usuario es enterprise
+    # Verificar que el usuario es enterprise
     profile = supabase.table("profiles").select("role").eq("id", current_user.id).single().execute()
     if not profile.data or profile.data.get("role") != "enterprise":
         raise HTTPException(status_code=403, detail="Solo cuentas enterprise pueden registrar sedes.")
 
-    # 2️⃣ Subir imagen a Supabase Storage
+    # Subir imagen a Supabase Storage
     bucket_name = "gym images"
     file_ext = image_file.filename.split(".")[-1] if "." in image_file.filename else "jpg"
     safe_filename = f"{current_user.id}_{name.replace(' ', '_')}.{file_ext}"
     
+    file_content = await image_file.read()
+    file_options = {"content-type": image_file.content_type}
+
     try:
-        file_content = await image_file.read()
+        # Intentamos subir como archivo nuevo
         supabase.storage.from_(bucket_name).upload(
             path=safe_filename,
             file=file_content,
-            file_options={"content-type": image_file.content_type, "upsert": True}
+            file_options=file_options
         )
-        image_url = supabase.storage.from_(bucket_name).get_public_url(safe_filename)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al subir la imagen: {str(e)}")
+    except Exception:
+        # Si falla (ya existe), lo sobrescribimos
+        supabase.storage.from_(bucket_name).update(
+            path=safe_filename,
+            file=file_content,
+            file_options=file_options
+        )
 
-    # 3️⃣ Preparamos datos para la base de datos (SIN latitud/longitud)
+    image_url = supabase.storage.from_(bucket_name).get_public_url(safe_filename)
+
+    # Preparamos datos para la base de datos (SIN latitud/longitud)
     gym_dict = {
         "name": name,
         "description": description,
@@ -54,14 +63,14 @@ async def create_gym(
         "is_open": False
     }
 
-    # 4️⃣ Insertamos en la tabla gyms
+    # Insertamos en la tabla gyms
     gym_res = supabase.table("gyms").insert(gym_dict).execute()
     if not gym_res.data:
         raise HTTPException(status_code=500, detail="Error al registrar la sede en la base de datos.")
 
     new_gym_id = gym_res.data[0]["id"]
 
-    # 5️⃣ Inicializamos estadísticas de aforo
+    # Inicializamos estadísticas de aforo
     supabase.table("gym_stats").insert({
         "gym_id": new_gym_id,
         "current_capacity": 0,
@@ -152,7 +161,7 @@ async def get_gym_members(gym_id: str, current_user = Depends(get_current_user))
 
 @router.post("/members", status_code=201)
 async def add_member_to_gym(data: MemberLinkRequest, current_user = Depends(get_current_user)):
-    # ✅ Verificación corregida: usa 'role' en lugar de 'is_enterprise'
+    # Verificación corregida: usa 'role' en lugar de 'is_enterprise'
     profile = supabase.table("profiles").select("role").eq("id", current_user.id).single().execute()
     if not profile.data or profile.data.get("role") != "enterprise":
         raise HTTPException(status_code=403, detail="Solo cuentas enterprise pueden gestionar socios.")
@@ -163,7 +172,7 @@ async def add_member_to_gym(data: MemberLinkRequest, current_user = Depends(get_
         "gym_id": data.gym_id,
         "start_date": data.start_date.isoformat(),
         "expiration_date": data.expiration_date.isoformat(),
-        "status": "active" # ✅ Alineado con la columna 'status' de la BD
+        "status": "active" # Alineado con la columna 'status' de la BD
     }
 
     sub_res = supabase.table("subscriptions").insert(subscription_data).execute()
