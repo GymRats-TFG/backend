@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
+from datetime import datetime
 
 class UserSignup(BaseModel):
     email: EmailStr
@@ -47,3 +48,23 @@ class GymResponse(BaseModel):
     current_capacity: int
     image_url: Optional[str] = None
     is_open: bool
+
+class MemberLinkRequest(BaseModel):
+    user_id: str
+    gym_id: str
+    start_date: datetime
+    expiration_date: datetime
+
+class MemberInfoResponse(BaseModel):
+    id: str
+    username: str
+    name: Optional[str] = None
+    email: str
+    avatar_url: Optional[str] = None
+    subscription_id: str
+    is_active: bool
+
+class SubscriptionUpdate(BaseModel):
+    start_date: Optional[datetime] = None
+    expiration_date: Optional[datetime] = None
+    is_active: Optional[bool] = None
