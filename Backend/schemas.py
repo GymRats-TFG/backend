@@ -27,8 +27,10 @@ class UserSignup(BaseModel):
 class GymCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    latitude: float
-    longitude: float
+    street: str
+    number: str
+    city: str
+    country: str
     phone: str
     email: EmailStr
     price: float
@@ -39,6 +41,7 @@ class GymResponse(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
+    address: Optional[str] = None  # Dirección legible para la UI
     latitude: float
     longitude: float
     phone: str

@@ -1,70 +1,68 @@
 from fastapi import APIRouter, Depends, HTTPException
+import asyncio
 from database import supabase
 from routers.auth import get_current_user
 from schemas import GymCreate, GymResponse, MemberLinkRequest, MemberInfoResponse
+from utils.geocoding import forward_geocode, reverse_geocode
 
 router = APIRouter(prefix="/gyms", tags=["Gyms"])
 
-@router.post("/")
+@router.post("/", status_code=201)
 async def create_gym(gym: GymCreate, current_user = Depends(get_current_user)):
-    # Verificamos si es empresa
-    user_metadata = current_user.user_metadata
-    if not user_metadata.get("is_enterprise"):
-        raise HTTPException(
-            status_code=403, 
-            detail="Solo las empresas pueden registrar gimnasios."
-        )
-    try:
-        # Convertimos el esquema a diccionario
-        gym_dict = gym.model_dump()
-        
-        # Vinculamos el gym a la cuenta empresa
-        gym_dict["enterprise_id"] = current_user.id
-        # Forzamos que el gym nazca cerrado por defecto
-        gym_dict["is_open"] = False
+    profile = supabase.table("profiles").select("role").eq("id", current_user.id).single().execute()
+    if not profile.data or profile.data.get("role") != "enterprise":
+        raise HTTPException(status_code=403, detail="Solo cuentas enterprise pueden registrar sedes.")
 
-        # Insertamos en Supabase
-        response = supabase.table("gyms").insert(gym_dict).execute()
+    lat, lon = await forward_geocode(gym.street, gym.number, gym.city, gym.country)
 
-        if not response.data:
-            raise Exception("No se pudieron insertar los datos en la tabla gyms.")
-        
-        # Obtener el ID del gimnasio
-        new_gym_id = response.data[0]["id"]
+    gym_dict = gym.model_dump(exclude={"street", "number", "city", "country"})
+    gym_dict["latitude"] = lat
+    gym_dict["longitude"] = lon
+    gym_dict["enterprise_id"] = current_user.id
+    gym_dict["is_open"] = False
 
-        # Inicializamos las estadísticas del aforo
-        supabase.table("gym_stats").insert({
-            "gym_id": new_gym_id,
-            "current_capacity": 0
-        }).execute()
+    gym_res = supabase.table("gyms").insert(gym_dict).execute()
+    if not gym_res.data:
+        raise HTTPException(status_code=500, detail="Error al registrar la sede.")
 
-        return {"message": "Gimnasio registrado", "gym": response.data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-    
+    new_gym_id = gym_res.data[0]["id"]
+    supabase.table("gym_stats").insert({
+        "gym_id": new_gym_id,
+        "current_capacity": 0,
+        "max_capacity": gym.max_capacity
+    }).execute()
+
+    return {"message": "Sede creada correctamente", "gym": gym_res.data[0]}
+
 @router.get("/my", response_model=list[GymResponse])
 async def get_my_gyms(current_user = Depends(get_current_user)):
-    # Obtenemos todas las sedes pertenecientes a la empresa
     gyms_res = supabase.table("gyms").select("*").eq("enterprise_id", current_user.id).execute()
     if not gyms_res.data:
         return []
 
+    tasks = [reverse_geocode(g["latitude"], g["longitude"]) for g in gyms_res.data]
+    addresses = await asyncio.gather(*tasks)
+
     result = []
-    for gym in gyms_res.data:
-        # Obtenemos el aforo actual
+    for i, gym in enumerate(gyms_res.data):
         stats_res = supabase.table("gym_stats").select("current_capacity").eq("gym_id", gym["id"]).single().execute()
         current_cap = stats_res.data.get("current_capacity", 0) if stats_res.data else 0
 
         result.append(GymResponse(
             id=gym["id"],
             name=gym["name"],
-            address=gym["address"],
+            description=gym.get("description"),
+            address=addresses[i],
+            latitude=gym["latitude"],
+            longitude=gym["longitude"],
+            phone=gym["phone"],
+            email=gym["email"],
+            price=gym["price"],
             max_capacity=gym.get("max_capacity", 0),
             current_capacity=current_cap,
             image_url=gym.get("image_url"),
             is_open=gym.get("is_open", False)
         ))
-
     return result
 
 @router.get("/{gym_id}", response_model=GymResponse)
