@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
+from pydantic import EmailStr
+from typing import Optional
 import asyncio
 from database import supabase
 from routers.auth import get_current_user
@@ -8,28 +10,76 @@ from utils.geocoding import forward_geocode, reverse_geocode
 router = APIRouter(prefix="/gyms", tags=["Gyms"])
 
 @router.post("/", status_code=201)
-async def create_gym(gym: GymCreate, current_user = Depends(get_current_user)):
+async def create_gym(
+    name: str = Form(...),
+    description: Optional[str] = Form(None),
+    street: str = Form(...),
+    number: str = Form(...),
+    city: str = Form(...),
+    country: str = Form(...),
+    phone: str = Form(...),
+    email: EmailStr = Form(...),
+    price: float = Form(...),
+    max_capacity: int = Form(...),
+    image_file: UploadFile = File(...),
+    current_user = Depends(get_current_user)
+):
+    # 1️⃣ Verificar que el usuario es enterprise
     profile = supabase.table("profiles").select("role").eq("id", current_user.id).single().execute()
     if not profile.data or profile.data.get("role") != "enterprise":
         raise HTTPException(status_code=403, detail="Solo cuentas enterprise pueden registrar sedes.")
 
-    lat, lon = await forward_geocode(gym.street, gym.number, gym.city, gym.country)
+    # 2️⃣ Geocodificación de la dirección
+    try:
+        lat, lon = await forward_geocode(street, number, city, country)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo encontrar la ubicación. Revisa la dirección.")
 
-    gym_dict = gym.model_dump(exclude={"street", "number", "city", "country"})
-    gym_dict["latitude"] = lat
-    gym_dict["longitude"] = lon
-    gym_dict["enterprise_id"] = current_user.id
-    gym_dict["is_open"] = False
+    # 3️⃣ Subir imagen a Supabase Storage
+    bucket_name = "gym images"
+    file_ext = image_file.filename.split(".")[-1] if "." in image_file.filename else "jpg"
+    safe_filename = f"{current_user.id}_{name.replace(' ', '_')}.{file_ext}"
+    
+    try:
+        file_content = await image_file.read()
+        supabase.storage.from_(bucket_name).upload(
+            path=safe_filename,
+            file=file_content,
+            file_options={"content-type": image_file.content_type, "upsert": True}
+        )
+        image_url = supabase.storage.from_(bucket_name).get_public_url(safe_filename)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al subir la imagen: {str(e)}")
 
+    # Preparamos datos para la base de datos
+    gym_dict = {
+        "name": name,
+        "description": description,
+        "latitude": lat,
+        "longitude": lon,
+        "phone": phone,
+        "email": email,
+        "price": price,
+        "max_capacity": max_capacity,
+        "image_url": image_url,
+        "enterprise_id": current_user.id,
+        "is_open": False
+    }
+
+    # Insertamos en la tabla gyms
     gym_res = supabase.table("gyms").insert(gym_dict).execute()
     if not gym_res.data:
-        raise HTTPException(status_code=500, detail="Error al registrar la sede.")
+        raise HTTPException(status_code=500, detail="Error al registrar la sede en la base de datos.")
 
     new_gym_id = gym_res.data[0]["id"]
+
+    # Inicializamos estadísticas de aforo
     supabase.table("gym_stats").insert({
         "gym_id": new_gym_id,
         "current_capacity": 0,
-        "max_capacity": gym.max_capacity
+        "max_capacity": max_capacity
     }).execute()
 
     return {"message": "Sede creada correctamente", "gym": gym_res.data[0]}
