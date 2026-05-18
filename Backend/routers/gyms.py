@@ -73,8 +73,7 @@ async def create_gym(
     # Inicializamos estadísticas de aforo
     supabase.table("gym_stats").insert({
         "gym_id": new_gym_id,
-        "current_capacity": 0,
-        "max_capacity": max_capacity
+        "current_capacity": 0
     }).execute()
 
     return {"message": "Sede creada correctamente", "gym": gym_res.data[0]}
