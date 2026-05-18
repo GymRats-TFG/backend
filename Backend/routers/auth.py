@@ -97,6 +97,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
                 "id": user.id,
                 "email": user.email,
                 "username": user.user_metadata.get("username", ""),
+                "name": user.user_metadata.get("name", ""),
                 "is_enterprise": user.user_metadata.get("is_enterprise", False)
             }
         }
