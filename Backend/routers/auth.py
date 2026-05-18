@@ -88,6 +88,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         })
 
         user = response.user
+
+        # Consultamos la tabla profiles para obtener el 'name' real
+        profile_res = supabase.table("profiles").select("name").eq("id", user.id).single().execute()
+        real_name = profile_res.data.get("name") if profile_res.data else None
         
         # Devolvemos el token del usuario
         return {
@@ -97,7 +101,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
                 "id": user.id,
                 "email": user.email,
                 "username": user.user_metadata.get("username", ""),
-                "name": user.user_metadata.get("name", ""),
+                "name": real_name,
                 "is_enterprise": user.user_metadata.get("is_enterprise", False)
             }
         }
