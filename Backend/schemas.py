@@ -33,7 +33,7 @@ class GymCreate(BaseModel):
     email: EmailStr
     price: float
     max_capacity: int
-    image_url: Optional[str] = None
+    image_url: str = None
 
 class GymResponse(BaseModel):
     id: str
@@ -46,7 +46,7 @@ class GymResponse(BaseModel):
     price: float
     max_capacity: int
     current_capacity: int
-    image_url: Optional[str] = None
+    image_url: str = None
     is_open: bool
 
 class MemberLinkRequest(BaseModel):
