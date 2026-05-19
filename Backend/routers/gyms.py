@@ -153,25 +153,56 @@ async def get_gym_members(gym_id: str, current_user = Depends(get_current_user))
                 email=user_data.get("email"),
                 avatar_url=user_data.get("avatar_url"),
                 subscription_id=sub["id"],
-                status=sub.get("status", "active") # ✅ Alineado con la columna 'status' de la BD
+                status=sub.get("status", "active")
             ))
     
     return members
 
 @router.post("/members", status_code=201)
 async def add_member_to_gym(data: MemberLinkRequest, current_user = Depends(get_current_user)):
-    # Verificación corregida: usa 'role' en lugar de 'is_enterprise'
+    # Verificar que el usuario actual es enterprise
     profile = supabase.table("profiles").select("role").eq("id", current_user.id).single().execute()
     if not profile.data or profile.data.get("role") != "enterprise":
         raise HTTPException(status_code=403, detail="Solo cuentas enterprise pueden gestionar socios.")
 
-    # Creamos la suscripción
+    # Validar que se proporcionó al menos un identificador
+    if not data.user_id and not data.username:
+        raise HTTPException(status_code=400, detail="Debes proporcionar 'user_id' o 'username'.")
+
+    target_user_id = data.user_id
+
+    # Resolver el ID del usuario objetivo
+    if data.username:
+        user_res = supabase.table("profiles").select("id").eq("username", data.username).single().execute()
+        if not user_res.data:
+            raise HTTPException(status_code=404, detail=f"No se encontró ningún usuario con el nombre '{data.username}'.")
+        target_user_id = user_res.data["id"]
+    else:
+        user_res = supabase.table("profiles").select("id").eq("id", data.user_id).single().execute()
+        if not user_res.data:
+            raise HTTPException(status_code=404, detail=f"No se encontró ningún usuario con el ID '{data.user_id}'.")
+
+    # No permitir cuentas enterprise como socios
+    target_profile = supabase.table("profiles").select("role").eq("id", target_user_id).single().execute()
+    if not target_profile.data or target_profile.data.get("role") == "enterprise":
+        raise HTTPException(status_code=400, detail="No se pueden suscribir cuentas de tipo enterprise a un gimnasio.")
+
+    # Validar que no es él mismo
+    if target_user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="No puedes suscribirte a ti mismo desde la cuenta de empresa.")
+
+    # Evitar suscripciones duplicadas activas en el mismo gimnasio
+    existing = supabase.table("subscriptions").select("id").eq("user_id", target_user_id).eq("gym_id", data.gym_id).eq("status", "active").execute()
+    if existing.data:
+        raise HTTPException(status_code=409, detail="El usuario ya tiene una suscripción activa en este gimnasio.")
+
+    # Crear la suscripción
     subscription_data = {
-        "user_id": data.user_id,
+        "user_id": target_user_id,
         "gym_id": data.gym_id,
         "start_date": data.start_date.isoformat(),
         "expiration_date": data.expiration_date.isoformat(),
-        "status": "active" # Alineado con la columna 'status' de la BD
+        "status": "active"
     }
 
     sub_res = supabase.table("subscriptions").insert(subscription_data).execute()
