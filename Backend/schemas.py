@@ -58,10 +58,9 @@ class MemberInfoResponse(BaseModel):
     id: str
     username: str
     name: Optional[str] = None
-    email: str
     avatar_url: Optional[str] = None
     subscription_id: str
-    is_active: bool
+    status: str = "active"
 
 class SubscriptionUpdate(BaseModel):
     start_date: Optional[datetime] = None

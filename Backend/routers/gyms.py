@@ -150,7 +150,6 @@ async def get_gym_members(gym_id: str, current_user = Depends(get_current_user))
                 id=user_data["id"],
                 username=user_data["username"],
                 name=user_data.get("name"),
-                email=user_data.get("email"),
                 avatar_url=user_data.get("avatar_url"),
                 subscription_id=sub["id"],
                 status=sub.get("status", "active")
