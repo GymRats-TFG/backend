@@ -48,7 +48,8 @@ class GymResponse(BaseModel):
     is_open: bool
 
 class MemberLinkRequest(BaseModel):
-    user_id: str
+    user_id: Optional[str] = None
+    username: Optional[str] = None
     gym_id: str
     start_date: datetime
     expiration_date: datetime
