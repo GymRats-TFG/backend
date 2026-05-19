@@ -2,12 +2,28 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from typing import Optional
 from database import supabase
 from routers.auth import get_current_user
+from datetime import date
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get("/me")
 async def get_my_profile(current_user = Depends(get_current_user)):
     user_id = current_user.id
+    today = date.today()
+
+    # Comprobar y actualizar suscripciones caducadas
+    subs_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+    if subs_response.data:
+        for sub in subs_response.data:
+            # Solo revisamos las que están marcadas como activas
+            if sub.get("status") == "active":
+                exp_str = sub.get("expiration_date")
+                if exp_str:
+                    # Convertimos el string 'YYYY-MM-DD' a objeto date
+                    exp_date = date.fromisoformat(exp_str)
+                    # Si caduca hoy o ya pasó, la marcamos como expirada
+                    if exp_date <= today:
+                        supabase.table("subscriptions").update({"status": "expired"}).eq("id", sub["id"]).execute()
 
     # Recopilamos toda la información del usuario, como foto de perfil, etc.
     response = supabase.table("profiles").select("*").eq("id",user_id).execute()
