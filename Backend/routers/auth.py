@@ -73,6 +73,8 @@ async def signup(user: UserSignup):
         return {
             "message": "Usuario y perfil creados correctamente", 
             "user": auth_response.user,
+            "access_token": auth_response.session.access_token,
+            "token_type": "bearer",
             "is_enterprise": user.is_enterprise
         }
     except Exception as e:
