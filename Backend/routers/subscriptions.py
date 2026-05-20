@@ -32,3 +32,22 @@ async def update_subscription(subscription_id: str, data: SubscriptionUpdate, cu
     supabase.table("subscriptions").update(update_fields).eq("id", subscription_id).execute()
     
     return {"message": "Suscripción actualizada correctamente"}
+
+@router.delete("/{subscription_id}")
+async def delete_subscription(subscription_id: str, current_user = Depends(get_current_user)):
+    # Verificamos si el usuario actual es enterprise
+    profile = supabase.table("profiles").select("role").eq("id", current_user.id).single().execute()
+    
+    if not profile.data or profile.data.get("role") != "enterprise":
+        raise HTTPException(status_code=403, detail="Permiso denegado. Se requiere cuenta de empresa.")
+
+    # Verificamos que la suscripción exista antes de intentar eliminarla
+    sub_check = supabase.table("subscriptions").select("id").eq("id", subscription_id).single().execute()
+    if not sub_check.data:
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada.")
+
+    # Eliminamos la suscripción
+    supabase.table("subscriptions").delete().eq("id", subscription_id).execute()
+    
+    # Respuesta de éxito
+    return {"message": "Suscripción eliminada correctamente"}
