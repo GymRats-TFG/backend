@@ -23,7 +23,9 @@ async def update_subscription(subscription_id: str, data: SubscriptionUpdate, cu
     # Si se envía una nueva expiration_date y es hoy o anterior, forzamos el estado a "inactive"
     if data.expiration_date is not None:
         if data.expiration_date.date() <= date.today():
-            update_fields["status"] = "inactive" 
+            update_fields["status"] = "inactive"
+        else:
+            update_fields["status"] = "active"
 
     # Convertimos fechas al formato correcto usando 'expiration_date'
     if "start_date" in update_fields:
