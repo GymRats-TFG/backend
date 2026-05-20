@@ -273,3 +273,39 @@ async def update_gym(
     # Devolver datos actualizados
     updated_gym_res = supabase.table("gyms").select("*").eq("id", gym_id).single().execute()
     return {"message": "Sede actualizada correctamente", "gym": updated_gym_res.data}
+
+@router.get("/stats/summary")
+async def get_enterprise_stats_summary(current_user = Depends(get_current_user)):
+    # Verificamos que el usuario es enterprise
+    profile = supabase.table("profiles").select("role").eq("id", current_user.id).single().execute()
+    if not profile.data or profile.data.get("role") != "enterprise":
+        raise HTTPException(status_code=403, detail="Solo cuentas enterprise pueden consultar estadísticas.")
+
+    # Obtenemos los IDs de todas las sedes de esta empresa
+    gyms_res = supabase.table("gyms").select("id").eq("enterprise_id", current_user.id).execute()
+    gym_ids = [g["id"] for g in (gyms_res.data or [])]
+
+    if not gym_ids:
+        return {"total_gyms": 0, "active_subscribers": 0, "total_current_capacity": 0}
+
+    # Contamos suscripciones activas en esas sedes
+    subs_res = supabase.table("subscriptions")\
+        .select("id")\
+        .eq("status", "active")\
+        .in_("gym_id", gym_ids)\
+        .execute()
+    active_subscribers = len(subs_res.data)
+
+    # Sumamos el aforo actual de todas las sedes
+    stats_res = supabase.table("gym_stats")\
+        .select("current_capacity")\
+        .in_("gym_id", gym_ids)\
+        .execute()
+    total_current_capacity = sum(s.get("current_capacity", 0) for s in (stats_res.data or []))
+
+    # Devolvemos el resumen
+    return {
+        "total_gyms": len(gym_ids),
+        "active_subscribers": active_subscribers,
+        "total_current_capacity": total_current_capacity
+    }
