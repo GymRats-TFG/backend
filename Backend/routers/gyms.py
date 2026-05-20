@@ -211,3 +211,65 @@ async def add_member_to_gym(data: MemberLinkRequest, current_user = Depends(get_
         raise HTTPException(status_code=500, detail="Error al vincular el socio.")
 
     return {"message": "Socio vinculado correctamente", "subscription": sub_res.data[0]}
+
+@router.patch("/{gym_id}")
+async def update_gym(
+    gym_id: str,
+    name: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    address: Optional[str] = Form(None),
+    phone: Optional[str] = Form(None),
+    email: Optional[EmailStr] = Form(None),
+    price: Optional[float] = Form(None),
+    max_capacity: Optional[int] = Form(None),
+    image_file: Optional[UploadFile] = File(None),
+    current_user = Depends(get_current_user)
+):
+    # Verificar que el usuario es enterprise
+    profile = supabase.table("profiles").select("role").eq("id", current_user.id).single().execute()
+    if not profile.data or profile.data.get("role") != "enterprise":
+        raise HTTPException(status_code=403, detail="Solo cuentas enterprise pueden editar sedes.")
+
+    # Verificar que el gimnasio existe y pertenece a esta empresa
+    gym_check = supabase.table("gyms").select("*").eq("id", gym_id).eq("enterprise_id", current_user.id).single().execute()
+    if not gym_check.data:
+        raise HTTPException(status_code=404, detail="Sede no encontrada o no tienes permisos para editarla.")
+
+    update_fields = {}
+
+    # Recopilar solo los campos que se han enviado
+    if name is not None: update_fields["name"] = name
+    if description is not None: update_fields["description"] = description
+    if address is not None: update_fields["address"] = address
+    if phone is not None: update_fields["phone"] = phone
+    if email is not None: update_fields["email"] = email
+    if price is not None: update_fields["price"] = price
+    if max_capacity is not None: update_fields["max_capacity"] = max_capacity
+
+    # Manejar imagen si se proporciona
+    bucket_name = "gym images"
+    if image_file:
+        file_ext = image_file.filename.split(".")[-1] if "." in image_file.filename else "jpg"
+
+        safe_filename = f"{gym_id}.{file_ext}"
+        
+        file_content = await image_file.read()
+        file_options = {"content-type": image_file.content_type}
+
+        try:
+            supabase.storage.from_(bucket_name).upload(path=safe_filename, file=file_content, file_options=file_options)
+        except Exception:
+            supabase.storage.from_(bucket_name).update(path=safe_filename, file=file_content, file_options=file_options)
+
+        update_fields["image_url"] = supabase.storage.from_(bucket_name).get_public_url(safe_filename)
+
+    # Validar que haya al menos un campo para actualizar
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No se proporcionaron datos para actualizar.")
+
+    # Ejecutar actualización en Supabase
+    supabase.table("gyms").update(update_fields).eq("id", gym_id).execute()
+
+    # Devolver datos actualizados
+    updated_gym_res = supabase.table("gyms").select("*").eq("id", gym_id).single().execute()
+    return {"message": "Sede actualizada correctamente", "gym": updated_gym_res.data}
