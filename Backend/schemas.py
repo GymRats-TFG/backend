@@ -61,6 +61,8 @@ class MemberInfoResponse(BaseModel):
     avatar_url: Optional[str] = None
     subscription_id: str
     status: str = "active"
+    start_date: datetime
+    expiration_date: datetime
 
 class SubscriptionUpdate(BaseModel):
     start_date: Optional[datetime] = None

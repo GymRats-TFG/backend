@@ -152,7 +152,9 @@ async def get_gym_members(gym_id: str, current_user = Depends(get_current_user))
                 name=user_data.get("name"),
                 avatar_url=user_data.get("avatar_url"),
                 subscription_id=sub["id"],
-                status=sub.get("status", "active")
+                status=sub.get("status", "active"),
+                start_date=sub.get("start_date"),
+                expiration_date=sub.get("expiration_date")
             ))
     
     return members
