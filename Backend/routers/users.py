@@ -23,7 +23,7 @@ async def get_my_profile(current_user = Depends(get_current_user)):
                     exp_date = date.fromisoformat(exp_str)
                     # Si caduca hoy o ya pasó, la marcamos como expirada
                     if exp_date <= today:
-                        supabase.table("subscriptions").update({"status": "expired"}).eq("id", sub["id"]).execute()
+                        supabase.table("subscriptions").update({"status": "inactive"}).eq("id", sub["id"]).execute()
 
     # Recopilamos toda la información del usuario, como foto de perfil, etc.
     response = supabase.table("profiles").select("*").eq("id",user_id).execute()

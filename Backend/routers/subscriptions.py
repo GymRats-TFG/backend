@@ -20,10 +20,10 @@ async def update_subscription(subscription_id: str, data: SubscriptionUpdate, cu
     if not update_fields:
         raise HTTPException(status_code=400, detail="No se proporcionaron datos para actualizar.")
     
-    # Si se envía una nueva expiration_date y es hoy o anterior, forzamos el estado a "expired"
+    # Si se envía una nueva expiration_date y es hoy o anterior, forzamos el estado a "inactive"
     if data.expiration_date is not None:
         if data.expiration_date.date() <= date.today():
-            update_fields["status"] = "expired" 
+            update_fields["status"] = "inactive" 
 
     # Convertimos fechas al formato correcto usando 'expiration_date'
     if "start_date" in update_fields:
