@@ -112,3 +112,20 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     except Exception as e:
         # Si las credenciales son incorrectas o el usuario no existe.
         raise HTTPException(status_code=401, detail="Correo o contraseña inválida")
+    
+@router.post("/refresh")
+async def refresh_token(refresh_token: str):
+    try:
+        # Pedimos a Supabase que use el refresh_token para darnos un nuevo par de tokens
+        response = supabase.auth.refresh_session(refresh_token)
+        
+        return {
+            "access_token": response.session.access_token,
+            "refresh_token": response.session.refresh_token,
+            "token_type": "bearer"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=401, 
+            detail="El token de refresco ha expirado o es inválido. Debe iniciar sesión de nuevo."
+        )
