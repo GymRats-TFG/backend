@@ -74,6 +74,7 @@ async def signup(user: UserSignup):
             "message": "Usuario y perfil creados correctamente", 
             "user": auth_response.user,
             "access_token": auth_response.session.access_token,
+            "refresh_token": auth_response.session.refresh_token,
             "token_type": "bearer",
             "is_enterprise": user.is_enterprise
         }
@@ -98,6 +99,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         # Devolvemos el token del usuario
         return {
             "access_token": response.session.access_token,
+            "refresh_token": response.session.refresh_token,
             "token_type": "bearer",
             "user": {
                 "id": user.id,

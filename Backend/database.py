@@ -1,4 +1,5 @@
 import os
+os.environ["HTTPX_HTTP2"] = "0"
 from supabase import create_client, Client
 from dotenv import load_dotenv
 

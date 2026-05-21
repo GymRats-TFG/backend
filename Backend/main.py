@@ -3,6 +3,8 @@ from routers.auth import router as auth_router
 from routers.users import router as users_router
 from routers.gyms import router as gyms_router
 from routers.subscriptions import router as subscriptions_router
+import os
+os.environ["HTTPX_HTTP2"] = "0"
 
 app = FastAPI(title="GymRats API")
 
