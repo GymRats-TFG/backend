@@ -23,6 +23,9 @@ class UserSignup(BaseModel):
             raise ValueError('La contraseña debe contener al menos un número.')
             
         return v
+    
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 class GymCreate(BaseModel):
     name: str

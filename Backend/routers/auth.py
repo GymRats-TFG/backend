@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from database import supabase
-from schemas import UserSignup
+from schemas import UserSignup, RefreshRequest
 
 router = APIRouter(tags=["Auth"])
 
@@ -114,10 +114,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=401, detail="Correo o contraseña inválida")
     
 @router.post("/refresh")
-async def refresh_token(refresh_token: str):
+async def refresh_token(payload: RefreshRequest):
     try:
         # Pedimos a Supabase que use el refresh_token para darnos un nuevo par de tokens
-        response = supabase.auth.refresh_session(refresh_token)
+        response = supabase.auth.refresh_session(payload.refresh_token)
         
         return {
             "access_token": response.session.access_token,
