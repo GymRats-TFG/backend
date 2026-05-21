@@ -309,3 +309,28 @@ async def get_enterprise_stats_summary(current_user = Depends(get_current_user))
         "active_subscribers": active_subscribers,
         "total_current_capacity": total_current_capacity
     }
+
+@router.patch("/{gym_id}/toggle-open")
+async def toggle_gym_open_status(gym_id: str, current_user = Depends(get_current_user)):
+    # Verificar que el usuario es enterprise
+    profile = supabase.table("profiles").select("role").eq("id", current_user.id).single().execute()
+    if not profile.data or profile.data.get("role") != "enterprise":
+        raise HTTPException(status_code=403, detail="Solo cuentas enterprise pueden cambiar el estado de una sede.")
+
+    # Verificar que el gimnasio existe y pertenece a esta empresa
+    gym_res = supabase.table("gyms").select("is_open").eq("id", gym_id).eq("enterprise_id", current_user.id).single().execute()
+    if not gym_res.data:
+        raise HTTPException(status_code=404, detail="Sede no encontrada o no tienes permisos para gestionarla.")
+
+    # Invertir el estado actual
+    current_status = gym_res.data.get("is_open", False)
+    new_status = not current_status
+
+    # Actualizar en la base de datos
+    supabase.table("gyms").update({"is_open": new_status}).eq("id", gym_id).execute()
+
+    # Devolver respuesta clara para la app
+    return {
+        "message": "Estado de la sede actualizado correctamente",
+        "is_open": new_status
+    }
