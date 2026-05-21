@@ -125,6 +125,7 @@ async def refresh_token(payload: RefreshRequest):
             "token_type": "bearer"
         }
     except Exception as e:
+        print(f"--- ERROR EN SUPABASE REFRESH: {str(e)} ---")
         raise HTTPException(
             status_code=401, 
             detail="El token de refresco ha expirado o es inválido. Debe iniciar sesión de nuevo."
