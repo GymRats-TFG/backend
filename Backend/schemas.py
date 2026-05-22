@@ -73,5 +73,4 @@ class SubscriptionUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 class ScanRequest(BaseModel):
-    gym_id: str
     user_id: str
