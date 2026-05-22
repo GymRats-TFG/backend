@@ -3,7 +3,8 @@ from pydantic import EmailStr
 from typing import Optional
 from database import supabase
 from routers.auth import get_current_user
-from schemas import GymResponse, MemberLinkRequest, MemberInfoResponse
+from schemas import GymResponse, MemberLinkRequest, MemberInfoResponse, ScanRequest
+from datetime import date
 
 router = APIRouter(prefix="/gyms", tags=["Gyms"])
 
@@ -334,3 +335,74 @@ async def toggle_gym_open_status(gym_id: str, current_user = Depends(get_current
         "message": "Estado de la sede actualizado correctamente",
         "is_open": new_status
     }
+
+@router.post("/{gym_id}/scan")
+async def process_scan(data: ScanRequest, current_user = Depends(get_current_user)):
+    # Verificar que la cuenta es enterprise
+    profile = supabase.table("profiles").select("role").eq("id", current_user.id).single().execute()
+    if not profile.data or profile.data.get("role") != "enterprise":
+        raise HTTPException(status_code=403, detail="Permiso denegado.")
+
+    # Verificar que la sede existe y pertenece a esta empresa
+    gym_res = supabase.table("gyms").select("*").eq("id", data.gym_id).eq("enterprise_id", current_user.id).single().execute()
+    if not gym_res.data:
+        raise HTTPException(status_code=404, detail="Sede no encontrada o no tienes permisos.")
+    gym = gym_res.data
+
+    # Verificar que el usuario escaneado existe
+    user_res = supabase.table("profiles").select("id, name, username").eq("id", data.user_id).single().execute()
+    if not user_res.data:
+        return {"success": False, "action": None, "message": "Usuario no registrado en la plataforma."}
+    user_name = user_res.data.get("name") or user_res.data.get("username")
+
+    # Obtener la última acción de este usuario en este gimnasio
+    last_log = supabase.table("access_logs")\
+        .select("action_type")\
+        .eq("user_id", data.user_id)\
+        .eq("gym_id", data.gym_id)\
+        .order("recorded_at", desc=True)\
+        .limit(1)\
+        .execute()
+    
+    last_action = last_log.data[0]["action_type"] if last_log.data else None
+
+    # Determinar siguiente acción: si la última fue 'entry' → toca 'exit', sino → 'entry'
+    next_action = "exit" if last_action == "entry" else "entry"
+
+    # Lógica según la acción
+    if next_action == "entry":
+        if not gym.get("is_open", False):
+            return {"success": False, "action": "entry", "message": "El gimnasio está cerrado actualmente."}
+
+        # Validar suscripción activa
+        sub_res = supabase.table("subscriptions").select("*").eq("user_id", data.user_id).eq("gym_id", data.gym_id).eq("status", "active").single().execute()
+        if not sub_res.data:
+            return {"success": False, "action": "entry", "message": "No tiene suscripción activa en esta sede."}
+
+        # Validar fecha de caducidad
+        exp_str = sub_res.data.get("expiration_date")
+        if exp_str and date.fromisoformat(exp_str) < date.today():
+            supabase.table("subscriptions").update({"status": "expired"}).eq("id", sub_res.data["id"]).execute()
+            return {"success": False, "action": "entry", "message": "Suscripción caducada."}
+
+        # Validar aforo
+        stats_res = supabase.table("gym_stats").select("current_capacity, max_capacity").eq("gym_id", data.gym_id).single().execute()
+        stats = stats_res.data or {}
+        current_cap = stats.get("current_capacity", 0)
+
+        # Registrar entrada y aumentar aforo
+        supabase.table("access_logs").insert({"user_id": data.user_id, "gym_id": data.gym_id, "action_type": "entry"}).execute()
+        supabase.table("gym_stats").update({"current_capacity": current_cap + 1}).eq("gym_id", data.gym_id).execute()
+
+        return {"success": True, "action": "entry", "message": "Entrada registrada", "user_name": user_name}
+
+    else:  # next_action == "exit"
+        # Registrar salida y disminuir aforo (nunca por debajo de 0)
+        stats_res = supabase.table("gym_stats").select("current_capacity").eq("gym_id", data.gym_id).single().execute()
+        current_cap = stats_res.data.get("current_capacity", 0) if stats_res.data else 0
+        new_cap = max(0, current_cap - 1)
+
+        supabase.table("gym_stats").update({"current_capacity": new_cap}).eq("gym_id", data.gym_id).execute()
+        supabase.table("access_logs").insert({"user_id": data.user_id, "gym_id": data.gym_id, "action_type": "exit"}).execute()
+
+        return {"success": True, "action": "exit", "message": "Salida registrada", "user_name": user_name}

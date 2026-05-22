@@ -71,3 +71,7 @@ class SubscriptionUpdate(BaseModel):
     start_date: Optional[datetime] = None
     expiration_date: Optional[datetime] = None
     is_active: Optional[bool] = None
+
+class ScanRequest(BaseModel):
+    gym_id: str
+    user_id: str
