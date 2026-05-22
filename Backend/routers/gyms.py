@@ -386,7 +386,7 @@ async def process_scan(gym_id: str, data: ScanRequest, current_user = Depends(ge
             return {"success": False, "action": "entry", "message": "Suscripción caducada."}
 
         # Validar aforo
-        stats_res = supabase.table("gym_stats").select("current_capacity, max_capacity").eq("gym_id", gym_id).single().execute()
+        stats_res = supabase.table("gym_stats").select("current_capacity").eq("gym_id", gym_id).single().execute()
         stats = stats_res.data or {}
         current_cap = stats.get("current_capacity", 0)
 
