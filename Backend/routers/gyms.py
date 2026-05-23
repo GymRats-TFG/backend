@@ -162,29 +162,25 @@ async def get_gym_members(gym_id: str, current_user = Depends(get_current_user))
 
 @router.post("/members", status_code=201)
 async def add_member_to_gym(data: MemberLinkRequest, current_user = Depends(get_current_user)):
-    # Verificamos que el solicitante es enterprise
+    # Verificamos que el usuario actual es enterprise
     profile = supabase.table("profiles").select("role").eq("id", current_user.id).execute()
     if not profile.data or profile.data[0].get("role") != "enterprise":
         raise HTTPException(status_code=403, detail="Solo cuentas enterprise pueden gestionar socios.")
 
-    # Validamos que se proporcionó al menos un identificador
-    if not data.user_id and not data.username:
-        raise HTTPException(status_code=400, detail="Debes proporcionar 'user_id' o 'username'.")
+    # Es username o userID?
+    target_user_id = None
 
-    target_user_id = data.user_id
-
-    # Resolvemos el ID del usuario objetivo (SIN .single())
-    if data.username:
-        user_res = supabase.table("profiles").select("id").eq("username", data.username).execute()
-        if not user_res.data:
-            raise HTTPException(status_code=404, detail=f"No se encontró ningún usuario con el nombre '{data.username}'.")
-        target_user_id = user_res.data[0]["id"]
+    # Intento 1: Buscamos por username
+    res_username = supabase.table("profiles").select("id").eq("username", data.user_identifier).execute()
+    if res_username.data:
+        target_user_id = res_username.data[0]["id"]
     else:
-        user_res = supabase.table("profiles").select("id").eq("id", data.user_id).execute()
-        if not user_res.data:
-            # 🔍 DEBUG: Si llega aquí, el ID no está en la tabla 'profiles'
-            raise HTTPException(status_code=404, detail=f"El ID '{data.user_id}' no existe en la tabla de perfiles.")
-        target_user_id = user_res.data[0]["id"]
+        # Intento 2: Si no coincide con username, probamos con el userID
+        res_id = supabase.table("profiles").select("id").eq("id", data.user_identifier).execute()
+        if res_id.data:
+            target_user_id = res_id.data[0]["id"]
+        else:
+            raise HTTPException(status_code=404, detail=f"No se encontró ningún usuario con el identificador '{data.user_identifier}'.")
 
     # Validamos que el usuario objetivo NO es enterprise
     target_profile = supabase.table("profiles").select("role").eq("id", target_user_id).execute()
@@ -195,7 +191,7 @@ async def add_member_to_gym(data: MemberLinkRequest, current_user = Depends(get_
     if target_user_id == current_user.id:
         raise HTTPException(status_code=400, detail="No puedes suscribirte a ti mismo desde la cuenta de empresa.")
 
-    # Evitamos suscripciones duplicadas activas
+    # Evitamos suscripciones duplicadas activas en el mismo gimnasio
     existing = supabase.table("subscriptions").select("id").eq("user_id", target_user_id).eq("gym_id", data.gym_id).eq("status", "active").execute()
     if existing.data:
         raise HTTPException(status_code=409, detail="El usuario ya tiene una suscripción activa en este gimnasio.")
