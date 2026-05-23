@@ -160,8 +160,8 @@ async def get_gym_members(gym_id: str, current_user = Depends(get_current_user))
     
     return members
 
-@router.post("/members", status_code=201)
-async def add_member_to_gym(data: MemberLinkRequest, current_user = Depends(get_current_user)):
+@router.post("/{gym_id}/add_member", status_code=201)
+async def add_member_to_gym(gym_id: str, data: MemberLinkRequest, current_user = Depends(get_current_user)):
     # Verificamos que el usuario actual es enterprise
     profile = supabase.table("profiles").select("role").eq("id", current_user.id).execute()
     if not profile.data or profile.data[0].get("role") != "enterprise":
@@ -192,14 +192,14 @@ async def add_member_to_gym(data: MemberLinkRequest, current_user = Depends(get_
         raise HTTPException(status_code=400, detail="No puedes suscribirte a ti mismo desde la cuenta de empresa.")
 
     # Evitamos suscripciones duplicadas activas en el mismo gimnasio
-    existing = supabase.table("subscriptions").select("id").eq("user_id", target_user_id).eq("gym_id", data.gym_id).eq("status", "active").execute()
+    existing = supabase.table("subscriptions").select("id").eq("user_id", target_user_id).eq("gym_id", gym_id).eq("status", "active").execute()
     if existing.data:
         raise HTTPException(status_code=409, detail="El usuario ya tiene una suscripción activa en este gimnasio.")
 
     # Creamos la suscripción
     subscription_data = {
         "user_id": target_user_id,
-        "gym_id": data.gym_id,
+        "gym_id": gym_id,
         "start_date": data.start_date.isoformat(),
         "expiration_date": data.expiration_date.isoformat(),
         "status": "active"
