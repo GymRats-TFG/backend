@@ -105,6 +105,68 @@ async def get_my_gyms(current_user = Depends(get_current_user)):
         ))
     return result
 
+
+@router.get("/user/subscriptions")
+async def get_user_subscriptions(current_user = Depends(get_current_user)):
+
+    # Obtener suscripciones del usuario
+    subs_res = supabase.table("subscriptions")\
+        .select("*")\
+        .eq("user_id", current_user.id)\
+        .execute()
+
+    if not subs_res.data:
+        return []
+
+    result = []
+
+    for sub in subs_res.data:
+
+        gym_res = supabase.table("gyms")\
+            .select("*")\
+            .eq("id", sub["gym_id"])\
+            .single()\
+            .execute()
+
+        if not gym_res.data:
+            continue
+
+        gym = gym_res.data
+
+        stats_res = supabase.table("gym_stats")\
+            .select("current_capacity")\
+            .eq("gym_id", gym["id"])\
+            .single()\
+            .execute()
+
+        current_cap = (
+            stats_res.data.get("current_capacity", 0)
+            if stats_res.data else 0
+        )
+
+        result.append({
+            "subscription_id": sub["id"],
+            "status": sub.get("status", "active"),
+            "start_date": sub.get("start_date"),
+            "expiration_date": sub.get("expiration_date"),
+
+            "gym": {
+                "id": gym["id"],
+                "name": gym["name"],
+                "description": gym.get("description"),
+                "address": gym.get("address", ""),
+                "phone": gym.get("phone", ""),
+                "email": gym.get("email", ""),
+                "price": gym.get("price", 0),
+                "max_capacity": gym.get("max_capacity", 0),
+                "current_capacity": current_cap,
+                "image_url": gym.get("image_url"),
+                "is_open": gym.get("is_open", False)
+            }
+        })
+
+    return result
+
 @router.get("/{gym_id}", response_model=GymResponse)
 async def get_gym(gym_id: str, current_user = Depends(get_current_user)):
     gym_res = supabase.table("gyms").select("*").eq("id", gym_id).single().execute()
