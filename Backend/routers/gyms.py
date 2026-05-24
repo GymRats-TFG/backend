@@ -404,3 +404,25 @@ async def process_scan(gym_id: str, data: ScanRequest, current_user = Depends(ge
         supabase.table("access_logs").insert({"user_id": data.user_id, "gym_id": gym_id, "action_type": "exit"}).execute()
 
         return {"success": True, "action": "exit", "message": "Salida registrada", "user_name": user_name}
+    
+@router.delete("/{gym_id}/delete")
+async def delete_gym(gym_id: str, current_user = Depends(get_current_user)):
+    # Verificamos que el usuario actual es enterprise
+    profile = supabase.table("profiles").select("role").eq("id", current_user.id).single().execute()
+    if not profile.data or profile.data.get("role") != "enterprise":
+        raise HTTPException(status_code=403, detail="Solo cuentas enterprise pueden eliminar sedes.")
+
+    # Verificamos que el gimnasio existe y pertenece a esta empresa
+    gym_check = supabase.table("gyms").select("id").eq("id", gym_id).eq("enterprise_id", current_user.id).single().execute()
+    if not gym_check.data:
+        raise HTTPException(status_code=404, detail="Sede no encontrada o no tienes permisos para eliminarla.")
+
+    # Limpiamos de forma explícita los datos asociados (evita huérfanos si no hay CASCADE en BD)
+    supabase.table("access_logs").delete().eq("gym_id", gym_id).execute()
+    supabase.table("subscriptions").delete().eq("gym_id", gym_id).execute()
+    supabase.table("gym_stats").delete().eq("gym_id", gym_id).execute()
+
+    # Eliminamos el gimnasio
+    supabase.table("gyms").delete().eq("id", gym_id).execute()
+
+    return {"message": "Sede eliminada correctamente junto con todos sus registros asociados."}
