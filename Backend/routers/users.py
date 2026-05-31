@@ -7,7 +7,7 @@ from routers.auth import get_current_user
 from datetime import date
 import httpx
 import httpcore
-from schemas import UserActivityResponse, UserSubscriptionResponse
+from schemas import UserActivityResponse
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
