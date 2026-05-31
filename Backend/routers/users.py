@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from typing import Optional
+from typing import Optional, List
 import os
 os.environ["HTTPX_HTTP2"] = "0"
 from database import supabase
@@ -7,6 +7,7 @@ from routers.auth import get_current_user
 from datetime import date
 import httpx
 import httpcore
+from schemas import UserActivityResponse, UserSubscriptionResponse
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -101,3 +102,63 @@ async def update_user_profile(
     supabase.table("profiles").update(update_payload).eq("id", user_id).execute()
     updated_profile = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
     return updated_profile.data
+
+@router.get("/activity", response_model=List[UserActivityResponse])
+async def get_user_activity(current_user = Depends(get_current_user)):
+    # Obtenemos logs de acceso solo de este usuario (últimos 20)
+    logs_res = supabase.table("access_logs")\
+        .select("id, gym_id, action_type, recorded_at")\
+        .eq("user_id", current_user.id)\
+        .order("recorded_at", desc=True)\
+        .limit(20)\
+        .execute()
+
+    if not logs_res.data:
+        return []
+
+    # Obtenemos nombres de gimnasios en lote (evita N+1 queries)
+    gym_ids = list(set(log["gym_id"] for log in logs_res.data))
+    gyms_res = supabase.table("gyms").select("id, name").in_("id", gym_ids).execute()
+    gym_names = {g["id"]: g["name"] for g in (gyms_res.data or [])}
+
+    # Mapeamos respuesta limpia para Compose
+    return [
+        UserActivityResponse(
+            id=log["id"],
+            gym_name=gym_names.get(log["gym_id"], "Gimnasio"),
+            action_type=log["action_type"],
+            recorded_at=log["recorded_at"]
+        )
+        for log in logs_res.data
+    ]
+
+@router.get("/subscriptions", response_model=List[UserSubscriptionResponse])
+async def get_user_subscriptions(current_user = Depends(get_current_user)):
+    # Obtenemos suscripciones activas solo de este usuario
+    subs_res = supabase.table("subscriptions")\
+        .select("id, gym_id, start_date, expiration_date")\
+        .eq("user_id", current_user.id)\
+        .eq("status", "active")\
+        .execute()
+
+    if not subs_res.data:
+        return []
+
+    # Obtenemos detalles de los gimnasios en lote
+    gym_ids = [sub["gym_id"] for sub in subs_res.data]
+    gyms_res = supabase.table("gyms").select("id, name, address, image_url").in_("id", gym_ids).execute()
+    gym_details = {g["id"]: g for g in (gyms_res.data or [])}
+
+    # Mapeamos la respuesta limpia para Compose
+    return [
+        UserSubscriptionResponse(
+            subscription_id=sub["id"],
+            gym_id=sub["gym_id"],
+            gym_name=gym_details.get(sub["gym_id"], {}).get("name", "Gimnasio"),
+            gym_address=gym_details.get(sub["gym_id"], {}).get("address", "Dirección no disponible"),
+            gym_image_url=gym_details.get(sub["gym_id"], {}).get("image_url"),
+            start_date=sub["start_date"],
+            expiration_date=sub["expiration_date"]
+        )
+        for sub in subs_res.data
+    ]
