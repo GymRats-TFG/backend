@@ -167,6 +167,67 @@ async def get_user_subscriptions(current_user = Depends(get_current_user)):
 
     return result
 
+@router.get("/all", response_model=list[GymResponse])
+async def get_all_gyms():
+
+    try:
+
+        gyms_res = supabase.table("gyms").select("*").execute()
+
+        print("GYMS:", gyms_res.data)
+
+        if not gyms_res.data:
+            return []
+
+        result = []
+
+        for gym in gyms_res.data:
+
+            print("GYM:", gym)
+
+            stats_res = supabase.table("gym_stats")\
+                .select("current_capacity")\
+                .eq("gym_id", gym["id"])\
+                .execute()
+
+            print("STATS:", stats_res.data)
+
+            current_cap = (
+                stats_res.data[0].get("current_capacity", 0)
+                if stats_res.data and len(stats_res.data) > 0
+                else 0
+            )
+
+            result.append(
+                GymResponse(
+                    id=gym["id"],
+                    name=gym["name"],
+                    description=gym.get("description"),
+                    address=gym.get("address", ""),
+                    phone=gym.get("phone", ""),
+                    email=gym.get("email", ""),
+                    price=gym.get("price", 0),
+                    max_capacity=gym.get("max_capacity", 0),
+                    current_capacity=current_cap,
+                    image_url=gym.get("image_url"),
+                    is_open=gym.get("is_open", False)
+                )
+            )
+
+        print("RESULT:", result)
+
+        return result
+
+    except Exception as e:
+
+        print("ERROR EN /all:", str(e))
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
 @router.get("/{gym_id}", response_model=GymResponse)
 async def get_gym(gym_id: str, current_user = Depends(get_current_user)):
     gym_res = supabase.table("gyms").select("*").eq("id", gym_id).single().execute()
