@@ -131,34 +131,3 @@ async def get_user_activity(current_user = Depends(get_current_user)):
         )
         for log in logs_res.data
     ]
-
-@router.get("/subscriptions", response_model=List[UserSubscriptionResponse])
-async def get_user_subscriptions(current_user = Depends(get_current_user)):
-    # Obtenemos suscripciones activas solo de este usuario
-    subs_res = supabase.table("subscriptions")\
-        .select("id, gym_id, start_date, expiration_date")\
-        .eq("user_id", current_user.id)\
-        .eq("status", "active")\
-        .execute()
-
-    if not subs_res.data:
-        return []
-
-    # Obtenemos detalles de los gimnasios en lote
-    gym_ids = [sub["gym_id"] for sub in subs_res.data]
-    gyms_res = supabase.table("gyms").select("id, name, address, image_url").in_("id", gym_ids).execute()
-    gym_details = {g["id"]: g for g in (gyms_res.data or [])}
-
-    # Mapeamos la respuesta limpia para Compose
-    return [
-        UserSubscriptionResponse(
-            subscription_id=sub["id"],
-            gym_id=sub["gym_id"],
-            gym_name=gym_details.get(sub["gym_id"], {}).get("name", "Gimnasio"),
-            gym_address=gym_details.get(sub["gym_id"], {}).get("address", "Dirección no disponible"),
-            gym_image_url=gym_details.get(sub["gym_id"], {}).get("image_url"),
-            start_date=sub["start_date"],
-            expiration_date=sub["expiration_date"]
-        )
-        for sub in subs_res.data
-    ]

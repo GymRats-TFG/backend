@@ -78,12 +78,3 @@ class UserActivityResponse(BaseModel):
     gym_name: str
     action_type: str          # "entry" o "exit"
     recorded_at: datetime
-
-class UserSubscriptionResponse(BaseModel):
-    subscription_id: str
-    gym_id: str
-    gym_name: str
-    gym_address: str
-    gym_image_url: Optional[str] = None
-    start_date: datetime
-    expiration_date: datetime
