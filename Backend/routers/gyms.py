@@ -105,6 +105,34 @@ async def get_my_gyms(current_user = Depends(get_current_user)):
         ))
     return result
 
+@router.get("/", response_model=list[GymResponse])
+async def get_all_gyms(current_user = Depends(get_current_user)):
+    # Obtenemos todos los gimnasios de la base de datos (sin filtrar por empresa)
+    gyms_res = supabase.table("gyms").select("*").execute()
+    
+    if not gyms_res.data:
+        return []
+
+    result = []
+    for gym in gyms_res.data:
+        # Obtenemos el aforo actual para cada gimnasio
+        stats_res = supabase.table("gym_stats").select("current_capacity").eq("gym_id", gym["id"]).single().execute()
+        current_cap = stats_res.data.get("current_capacity", 0) if stats_res.data else 0
+
+        result.append(GymResponse(
+            id=gym["id"],
+            name=gym["name"],
+            description=gym.get("description"),
+            address=gym.get("address", "Dirección no disponible"),
+            phone=gym["phone"],
+            email=gym["email"],
+            price=gym["price"],
+            max_capacity=gym.get("max_capacity", 0),
+            current_capacity=current_cap,
+            image_url=gym.get("image_url"),
+            is_open=gym.get("is_open", False)
+        ))
+    return result
 
 @router.get("/user/subscriptions")
 async def get_user_subscriptions(current_user = Depends(get_current_user)):
