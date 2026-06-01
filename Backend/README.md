@@ -17,12 +17,11 @@ Este directorio contiene el núcleo lógico de la aplicación **GymRats**, desar
 * `database.py`: Configuración del cliente de Supabase y gestión de la conexión
 * `schemas.py`: Modelos Pydantic con validadores personalizados para contraseñas y correos
 * `requirements.txt`: Lista completa de dependencias del proyecto
-* `.env`: Variables de entorno con credenciales de Supabase (no compartir)
 * `example.env`: Plantilla de configuración para variables de entorno
 * `routers/`: Directorio con los módulos de rutas organizados por funcionalidad
   * `auth.py`: Endpoints de registro, login y validación de tokens JWT
   * `users.py`: Gestión de perfiles de usuario y actualización de datos
-  * `gyms.py`: CRUD de gimnasios y gestión de socios
+  * `gyms.py`: CRUD de gimnasios, gestión de socios y escaneo de acceso
   * `subscriptions.py`: Administración de suscripciones y membresías
 
 ## 🔐 Sistema de seguridad y roles
@@ -36,29 +35,36 @@ La API implementa un flujo de seguridad robusto basado en OAuth2 con Bearer Toke
 
 ## 🛰️ Endpoints principales
 
-### Autenticación
+### Autenticación (`/auth`)
 
-* `POST /signup`: Registro de nuevos usuarios con validación de complejidad de contraseña y creación automática del perfil
-* `POST /login`: Autenticación con email y contraseña, devuelve token de acceso y datos del usuario
-* `GET /users/me`: Recuperación de información del usuario actual (requiere token válido)
+* `POST /signup`: se registran nuevos usuarios con validación de contraseña.
+* `POST /login`: se devuelve el token de acceso y los datos del usuario.
+* `POST /refresh`: se renuevan los tokens de acceso.
 
-### Gestión de usuarios
+### Gestión de usuarios (`/users`)
 
-* `GET /users/me`: Obtiene el perfil completo del usuario autenticado, incluyendo foto, descripción y estado de suscripciones
-* `PATCH /users/profile`: Actualiza datos del perfil (nombre, username, avatar) con soporte para subida de imágenes
+* `GET /users/me`: se obtiene el perfil completo del usuario autenticado.
+* `PATCH /users/profile`: se actualizan datos del perfil, como nombre o avatar.
+* `GET /users/activity`: se recupera el historial de accesos del usuario.
 
-### Gestión de gimnasios (solo enterprise)
+### Gestión de gimnasios (`/gyms`)
 
-* `POST /gyms`: Crea una nueva sede con imagen, datos de contacto y configuración de capacidad
-* `GET /gyms/my`: Lista todos los gimnasios registrados por el usuario enterprise actual
-* `GET /gyms/{gym_id}`: Obtiene detalles completos de una sede específica, incluyendo aforo actual
-* `GET /gyms/{gym_id}/members`: Lista todos los socios activos vinculados a una sede
-* `POST /gyms/members`: Vincula un usuario como socio a un gimnasio, usando user_id o username como identificador
+* `POST /`: se crea una nueva sede con sus datos de contacto.
+* `GET /`: se listan todos los gimnasios disponibles.
+* `GET /my`: se muestran los gimnasios registrados por el usuario actual.
+* `GET /{gym_id}`: se obtienen detalles de una sede específica.
+* `GET /{gym_id}/members`: se listan los socios activos de una sede.
+* `POST /{gym_id}/add_member`: se vincula un usuario como socio a un gimnasio.
+* `PATCH /{gym_id}`: se actualizan datos de una sede existente.
+* `PATCH /{gym_id}/toggle-open`: se cambia el estado de apertura de la sede.
+* `POST /{gym_id}/scan`: se procesan los escaneos de acceso para entradas o salidas.
+* `DELETE /{gym_id}/delete`: se elimina una sede y sus registros.
+* `GET /stats/summary`: se obtienen estadísticas de la empresa.
 
-### Gestión de suscripciones
+### Gestión de suscripciones (`/subscriptions`)
 
-* `PATCH /subscriptions/{subscription_id}`: Actualiza fechas o estado de una suscripción (solo enterprise)
-* `DELETE /subscriptions/{subscription_id}`: Elimina una suscripción de la base de datos (solo enterprise)
+* `PATCH /{subscription_id}`: se actualizan fechas o estados de una suscripción.
+* `DELETE /{subscription_id}`: se elimina una suscripción.
 
 ## 🚀 Instalación y uso
 
@@ -90,6 +96,11 @@ Se debe renombrar el archivo `example.env` a `.env` y completar con las credenci
 * `SUPABASE_URL`: URL del proyecto en Supabase
 * `SUPABASE_KEY`: Clave pública o privada según el entorno de uso
 
+```env
+SUPABASE_URL=https://tu-proyecto.supabase.co
+SUPABASE_KEY=tu-clave-service-role-o-anon
+```
+
 ### 4. Ejecutar el servidor de desarrollo
 
 ```bash
@@ -115,6 +126,7 @@ El proyecto utiliza las siguientes tablas en Supabase:
 * `gyms`: Registro de sedes deportivas con datos de contacto, capacidad y estado
 * `gym_stats`: Control de aforo en tiempo real para cada gimnasio
 * `subscriptions`: Vinculación de usuarios a gimnasios con fechas de inicio y expiración
+* `access_logs`: se registra el historial de accesos.
 
 ## 🧪 Consideraciones para pruebas
 
