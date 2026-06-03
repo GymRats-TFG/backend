@@ -438,10 +438,12 @@ async def process_scan(gym_id: str, data: ScanRequest, current_user = Depends(ge
     gym = gym_res.data
 
     # Verificar que el usuario escaneado existe
-    user_res = supabase.table("profiles").select("id, name, username").eq("id", data.user_id).single().execute()
+    user_res = supabase.table("profiles").select("id, name, username").eq("id", data.user_id).execute()
     if not user_res.data:
         return {"success": False, "action": None, "message": "Usuario no registrado en la plataforma."}
-    user_name = user_res.data.get("name") or user_res.data.get("username")
+    
+    user_data = user_res.data[0]
+    user_name = user_data.get("name") or user_data.get("username")
 
     # Obtener la última acción de este usuario en este gimnasio
     last_log = supabase.table("access_logs")\
@@ -463,20 +465,21 @@ async def process_scan(gym_id: str, data: ScanRequest, current_user = Depends(ge
             return {"success": False, "action": "entry", "message": "El gimnasio está cerrado actualmente."}
 
         # Validar suscripción activa
-        sub_res = supabase.table("subscriptions").select("*").eq("user_id", data.user_id).eq("gym_id", gym_id).eq("status", "active").single().execute()
+        sub_res = supabase.table("subscriptions").select("*").eq("user_id", data.user_id).eq("gym_id", gym_id).eq("status", "active").execute()
         if not sub_res.data:
             return {"success": False, "action": "entry", "message": "No tiene suscripción activa en esta sede."}
+        
+        sub_data = sub_res.data[0]
 
         # Validar fecha de caducidad
-        exp_str = sub_res.data.get("expiration_date")
+        exp_str = sub_data.get("expiration_date")
         if exp_str and date.fromisoformat(exp_str) < date.today():
-            supabase.table("subscriptions").update({"status": "expired"}).eq("id", sub_res.data["id"]).execute()
+            supabase.table("subscriptions").update({"status": "expired"}).eq("id", sub_data["id"]).execute()
             return {"success": False, "action": "entry", "message": "Suscripción caducada."}
 
         # Validar aforo
-        stats_res = supabase.table("gym_stats").select("current_capacity").eq("gym_id", gym_id).single().execute()
-        stats = stats_res.data or {}
-        current_cap = stats.get("current_capacity", 0)
+        stats_res = supabase.table("gym_stats").select("current_capacity").eq("gym_id", gym_id).execute()
+        current_cap = stats_res.data[0].get("current_capacity", 0) if stats_res.data else 0
 
         # Registrar entrada y aumentar aforo
         supabase.table("access_logs").insert({"user_id": data.user_id, "gym_id": gym_id, "action_type": "entry"}).execute()
