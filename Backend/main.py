@@ -19,4 +19,4 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "0.0.3"}
+    return {"status": "healthy", "version": "1.0"}
